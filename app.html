@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>세방 납품량 입력</title>
+<script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: "Malgun Gothic", sans-serif; margin: 0; font-size: 13px; color: #222; background: #f6f7f9; }
+  header { background: #1f3b73; color: #fff; padding: 10px 12px; font-weight: bold; font-size: 15px; }
+  nav { display: flex; background: #fff; border-bottom: 1px solid #dde1e7; }
+  nav button { flex: 1; border: 0; background: none; padding: 9px 4px; font-size: 13px; cursor: pointer; color: #555; border-bottom: 3px solid transparent; }
+  nav button.on { color: #1f3b73; font-weight: bold; border-bottom-color: #1f6feb; }
+  main { padding: 10px; }
+  .page { display: none; }
+  .page.on { display: block; }
+  .box { background: #fff; border: 1px solid #dde1e7; border-radius: 6px; padding: 10px; margin-bottom: 10px; }
+  .muted { color: #777; font-size: 12px; }
+  label.f { display: block; margin: 8px 0 4px; font-weight: bold; }
+  select, input[type=text], input[type=number], textarea { padding: 5px; border: 1px solid #c5cedd; border-radius: 4px; font: inherit; }
+  .w100 { width: 100%; }
+  button.btn { padding: 8px 10px; font-size: 13px; background: #1f6feb; color: #fff; border: 0; border-radius: 4px; cursor: pointer; }
+  button.btn:disabled { background: #a9b3c2; cursor: default; }
+  button.ghost { padding: 7px 9px; font-size: 12px; background: #fff; color: #1f3b73; border: 1px solid #b8c4d8; border-radius: 4px; cursor: pointer; }
+  button.ghost:disabled { color: #aaa; cursor: default; }
+  button.danger { color: #a12622; border-color: #e3b3b0; }
+  .btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .btns .grow { flex: 1; }
+  #drop { border: 2px dashed #9fb0cc; border-radius: 6px; padding: 18px 8px; text-align: center; background: #fff; cursor: pointer; }
+  #drop.hot { background: #eef4ff; border-color: #1f6feb; }
+  /* 카드 */
+  .card { background: #fff; border: 1px solid #dde1e7; border-radius: 6px; margin-bottom: 12px; overflow: hidden; }
+  .card .top { display: flex; gap: 8px; padding: 8px; align-items: flex-start; border-bottom: 1px solid #eee; }
+  .card .top img { width: 64px; height: 84px; object-fit: cover; border: 1px solid #ccc; border-radius: 3px; cursor: zoom-in; }
+  .card .top .meta { flex: 1; min-width: 0; }
+  .card .top .meta b { font-size: 14px; }
+  .card .body { padding: 8px; }
+  .banner { padding: 7px 9px; border-radius: 4px; margin-bottom: 8px; white-space: pre-wrap; }
+  .banner.ok { background: #e6f4ea; color: #1e6b34; }
+  .banner.warn { background: #fff4e0; color: #8a5300; }
+  .banner.bad { background: #fdecea; color: #a12622; }
+  .banner.busy { background: #eef2ff; color: #333; }
+  .banner.done { background: #1e6b34; color: #fff; }
+  .banner ul { margin: 4px 0 0 16px; padding: 0; }
+  .fields { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 6px; }
+  .fields input { width: 52px; text-align: right; }
+  table.items { width: 100%; border-collapse: collapse; }
+  table.items th { font-size: 11px; color: #666; text-align: left; padding: 3px 2px; border-bottom: 1px solid #ddd; font-weight: normal; }
+  table.items td { padding: 3px 2px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+  table.items td.no { width: 16px; color: #999; font-size: 11px; padding-top: 7px; }
+  table.items input.nm { width: 62px; }
+  table.items input.qt { width: 46px; text-align: right; }
+  .card input:disabled { background: transparent; border-color: transparent; color: #111; font-weight: bold; }
+  table.items tr.low td { background: #fdecea; }
+  table.items tr.diff td { background: #fff4e0; }
+  .tag { font-size: 11px; }
+  .tag.ok { color: #1e6b34; }
+  .tag.bad { color: #a12622; font-weight: bold; }
+  .alt { font-size: 11px; color: #8a5300; }
+  .sumline { text-align: right; margin-top: 6px; font-weight: bold; }
+  .chk { display: flex; gap: 6px; align-items: center; margin-top: 8px; font-weight: bold; color: #8a5300; }
+  table.prev { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 12px; }
+  table.prev td, table.prev th { border-bottom: 1px solid #eee; padding: 3px 2px; text-align: left; }
+  table.prev td.num, table.prev th.num { text-align: right; }
+  table.prev tr.chg td { background: #fff4e0; }
+  #zoom { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.85); z-index: 10; overflow: auto; }
+  #zoom.on { display: block; }
+  #zoom img { width: 100%; display: block; }
+  #zoom button { position: fixed; top: 8px; right: 8px; }
+  /* 직접 입력 */
+  table.manual { width: 100%; border-collapse: collapse; }
+  table.manual td { padding: 4px 2px; border-bottom: 1px solid #eee; }
+  table.manual td.q { width: 70px; }
+  table.manual td.q input { width: 100%; text-align: right; }
+</style>
+</head>
+<body>
+<header>세방 납품량 입력 <span style="float:right;font-weight:normal;font-size:11px;opacity:.75">v1.5 (11/12)</span></header>
+<nav>
+  <button id="tab-photo" class="on" onclick="go('photo')">사진 판독</button>
+  <button id="tab-manual" onclick="go('manual')">직접 입력</button>
+  <button id="tab-set" onclick="go('set')">설정</button>
+</nav>
+
+<main>
+  <div class="box">
+    <label class="f" style="margin-top:0" for="sheetSel">입력할 시트 탭</label>
+    <div style="display:flex;gap:6px">
+      <select id="sheetSel" class="w100"></select>
+      <button class="ghost" onclick="loadSheets()">새로고침</button>
+    </div>
+    <div id="sheetInfo" class="muted" style="margin-top:6px"></div>
+  </div>
+
+  <!-- ===== 사진 판독 ===== -->
+  <section id="page-photo" class="page on">
+    <div id="drop" onclick="document.getElementById('file').click()">
+      <b>반출증 사진 올리기</b><br>
+      <span class="muted">눌러서 선택하거나 끌어다 놓기 · 여러 장 가능</span>
+    </div>
+    <input type="file" id="file" accept="image/*" multiple style="display:none">
+    <p class="muted" style="margin:6px 2px 10px">사진마다 두 번 따로 판독해서 결과를 비교합니다. 결과를 확인한 뒤 [시트에 입력]을 눌러야 시트에 들어갑니다.</p>
+    <div id="cards"></div>
+  </section>
+
+  <!-- ===== 직접 입력 ===== -->
+  <section id="page-manual" class="page">
+    <div class="box">
+      <label class="f" style="margin-top:0" for="mDay">날짜</label>
+      <select id="mDay" class="w100"></select>
+      <label class="f">제품별 납품량</label>
+      <table class="manual"><tbody id="mRows"></tbody></table>
+      <div class="sumline">합계: <span id="mTotal">0</span></div>
+      <div class="btns"><button class="btn grow" id="mWriteBtn" onclick="manualWrite()">시트에 입력</button></div>
+      <div id="mPreview"></div>
+    </div>
+  </section>
+
+  <!-- ===== 설정 ===== -->
+  <section id="page-set" class="page">
+    <div class="box">
+      <label class="f" style="margin-top:0" for="engine">판독 엔진</label>
+      <select id="engine" class="w100" onchange="showEngine()">
+        <option value="gemini">Gemini (Google, 무료 키 가능)</option>
+        <option value="claude">Claude (Anthropic, 유료)</option>
+      </select>
+
+      <div id="eng-claude">
+        <label class="f" for="claudeKey">Claude API 키</label>
+        <input type="text" id="claudeKey" class="w100" placeholder="sk-ant-..." autocomplete="off">
+        <label class="f" for="claudeModel">모델</label>
+        <select id="claudeModel" class="w100">
+          <option value="claude-opus-5-5">Claude Opus 5.5 (가장 정확)</option>
+          <option value="claude-sonnet-5-5">Claude Sonnet 5.5 (더 저렴)</option>
+        </select>
+        <p class="muted">키는 console.anthropic.com 에서 발급합니다. 키는 이 PC의 추가 기능 저장소에만 저장되고, 사진은 판독을 위해 Anthropic 서버로 전송됩니다.</p>
+      </div>
+
+      <div id="eng-gemini" style="display:none">
+        <label class="f" for="apiKeys">Gemini API 키 (한 줄에 하나)</label>
+        <textarea id="apiKeys" rows="4" class="w100" placeholder="AIza..."></textarea>
+        <label class="f" for="model">모델</label>
+        <select id="model" class="w100">
+          <option value="gemini-3.8-flash">gemini-3.8-flash</option>
+          <option value="gemini-3.6-flash">gemini-3.6-flash</option>
+        </select>
+        <p class="muted">키 발급: aistudio.google.com 에서 구글 로그인 → Get API key. 키를 여러 개 넣으면 한도 초과나 혼잡일 때 다음 키로 넘어갑니다 (서로 다른 Google 프로젝트에서 만든 키여야 한도가 늘어납니다). 키는 이 PC의 추가 기능 저장소에만 저장되고, 사진은 판독을 위해 Google 서버로 전송됩니다.</p>
+      </div>
+
+      <div class="btns">
+        <button class="ghost" onclick="testKeys()">키 테스트</button>
+        <button class="btn grow" onclick="saveSettings()">저장</button>
+      </div>
+      <div id="keyMsg" class="muted" style="margin-top:6px"></div>
+    </div>
+    <div class="box">
+      <b>품명 → 시트 행</b>
+      <p class="muted">반출증 품명(접두어 N, H, HS, HK + 두께)을 시트 행으로 바꿉니다. 접두어가 없는 줄은 바로 위 줄의 접두어를 이어 씁니다.</p>
+      <table class="prev"><tbody id="mapView"></tbody></table>
+    </div>
+  </section>
+</main>
+
+<div id="zoom" onclick="this.classList.remove('on')"><button class="ghost">닫기</button><img id="zoomImg" alt=""></div>
+
+<script>
+// ---------- 고정 설정 ----------
+const HEADER_ROW = 57;           // "1일", "2일" ... 머리글 행
+const MAP = [                    // 반출증 품명 -> 시트 행
+  { key: "N0.6",  name: "PEN. 120 * 0.6 * 0.20",           row: 58 },
+  { key: "N1.0",  name: "PEN. 120 * 1.0 * 0.20",           row: 59 },
+  { key: "H0.7",  name: "PEH. 157 * 0.7 * 0.20",           row: 60 },
+  { key: "H0.8",  name: "PEH. 157 * 0.8 * 0.20",           row: 61 },
+  { key: "H1.0",  name: "PEH. 157 * 1.0 * 0.20",           row: 62 },
+  { key: "HK0.8", name: "PEH. 157 * 0.8 * 0.25 (11 Rib)",  row: 63 },
+  { key: "HK1.0", name: "PEH. 157 * 1.0 * 0.25 (11 Rib)",  row: 64 },
+  { key: "HS0.6", name: "PEHS. 157 * 0.6 * 0.20 (18 Rib)", row: 66 },
+  { key: "HS0.7", name: "PEHS. 157 * 0.7 * 0.20 (18 Rib)", row: 67 }
+];
+
+const $ = id => document.getElementById(id);
+function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+function store(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+function load(k, def) { try { const s = localStorage.getItem(k); if (s) return JSON.parse(s); } catch (e) {} return def; }
+
+let S = Object.assign({ engine: "gemini", claudeKey: "", claudeModel: "claude-opus-5-5", apiKeys: [], model: "gemini-3.8-flash" }, load("addin_settings", {}));
+function hasKey() { return S.engine === "claude" ? !!S.claudeKey : !!(S.apiKeys && S.apiKeys.length); }
+let IN_EXCEL = false;
+
+function go(name) {
+  ["photo", "manual", "set"].forEach(k => {
+    $("page-" + k).classList.toggle("on", k === name);
+    $("tab-" + k).classList.toggle("on", k === name);
+  });
+}
+
+// ---------- 설정 ----------
+function parseKeys(t) { return String(t || "").split(/[\r\n,;\s]+/).map(x => x.trim()).filter(Boolean); }
+function showEngine() {
+  const e = $("engine").value;
+  $("eng-claude").style.display = e === "claude" ? "" : "none";
+  $("eng-gemini").style.display = e === "gemini" ? "" : "none";
+}
+function loadSettingsUI() {
+  $("engine").value = S.engine;
+  $("claudeKey").value = S.claudeKey || "";
+  $("claudeModel").value = S.claudeModel;
+  showEngine();
+  $("apiKeys").value = (S.apiKeys || []).join("\n");
+  $("model").value = S.model;
+  $("mapView").innerHTML = MAP.map(m => "<tr><td>" + esc(m.key) + "</td><td>" + esc(m.name) + "</td><td class='num'>" + m.row + "행</td></tr>").join("");
+}
+function saveSettings() {
+  S.engine = $("engine").value;
+  S.claudeKey = $("claudeKey").value.trim();
+  S.claudeModel = $("claudeModel").value;
+  S.apiKeys = parseKeys($("apiKeys").value);
+  S.model = $("model").value;
+  store("addin_settings", S);
+  claudeClient = null;
+  $("keyMsg").textContent = "저장했습니다. (" + (S.engine === "claude" ? "Claude" : "Gemini 키 " + S.apiKeys.length + "개") + ")";
+}
+async function testKeys() {
+  if ($("engine").value === "claude") {
+    const key = $("claudeKey").value.trim();
+    if (!key) { $("keyMsg").textContent = "키를 입력하세요."; return; }
+    $("keyMsg").textContent = "확인 중...";
+    try {
+      const client = await getClaude(key);
+      const m = await client.models.retrieve($("claudeModel").value);
+      $("keyMsg").textContent = "정상: " + m.display_name + " 사용 가능";
+    } catch (e) { $("keyMsg").textContent = "실패: " + claudeErrText(e); }
+    return;
+  }
+  const keys = parseKeys($("apiKeys").value);
+  if (!keys.length) { $("keyMsg").textContent = "키를 입력하세요."; return; }
+  $("keyMsg").textContent = "확인 중...";
+  const out = [];
+  for (let i = 0; i < keys.length; i++) {
+    try {
+      const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models?key=" + encodeURIComponent(keys[i]));
+      const j = await r.json();
+      out.push((i + 1) + "번 키: " + (r.ok ? "정상" : esc((j.error && j.error.message) || r.status)));
+    } catch (e) { out.push((i + 1) + "번 키: " + esc(e.message)); }
+  }
+  $("keyMsg").innerHTML = out.join("<br>");
+}
+
+// ---------- 시트 탭 ----------
+let WB_NAME = "";
+function sheetInfo(kind, html) {
+  const el = $("sheetInfo");
+  el.className = kind === "bad" ? "banner bad" : kind === "warn" ? "banner warn" : "muted";
+  el.style.margin = "6px 0 0";
+  el.innerHTML = html;
+}
+// 탭 목록을 읽습니다. 못 읽으면 목록을 비우고 이유를 보여 줍니다 (Sheet1로 대신 채우지 않음).
+async function loadSheets() {
+  const sel = $("sheetSel");
+  if (!IN_EXCEL) {
+    sel.innerHTML = ""; sel.disabled = true;
+    sheetInfo("bad", "<b>엑셀 탭 목록을 읽지 못했습니다.</b>\n이 화면이 엑셀 밖(브라우저)에서 열려 있습니다. 공유 납품량 엑셀 파일을 열고, 그 창의 추가 기능에서 여세요.");
+    return;
+  }
+  sheetInfo("", "엑셀 탭 목록을 읽는 중...");
+  try {
+    await Excel.run(async ctx => {
+      const ws = ctx.workbook.worksheets; ws.load("items/name");
+      const act = ctx.workbook.worksheets.getActiveWorksheet(); act.load("name");
+      await ctx.sync();
+      WB_NAME = "";
+      try { ctx.workbook.load("name"); await ctx.sync(); WB_NAME = ctx.workbook.name || ""; } catch (e) { /* 이전 엑셀 버전: 파일 이름 미지원 */ }
+      const prev = sel.value || load("addin_sheet", "") || act.name;
+      sel.innerHTML = ws.items.map(w => "<option>" + esc(w.name) + "</option>").join("");
+      sel.value = ws.items.some(w => w.name === prev) ? prev : act.name;
+      sel.disabled = false;
+    });
+    await checkSheet();
+  } catch (e) {
+    sel.innerHTML = ""; sel.disabled = true;
+    sheetInfo("bad", "<b>엑셀 탭 목록을 읽지 못했습니다.</b>\n" + esc(e.message || e) + "\n[새로고침]을 눌러 다시 시도하세요.");
+  }
+}
+// 고른 탭의 57행 날짜 머리글을 확인하고, 지금 읽는 위치를 보여 줍니다.
+async function checkSheet() {
+  const sheet = $("sheetSel").value;
+  if (!sheet) return;
+  const where = (WB_NAME ? "파일 <b>" + esc(WB_NAME) + "</b> · " : "") + "탭 <b>" + esc(sheet) + "</b>";
+  try {
+    await Excel.run(async ctx => {
+      const L = await locateLayout(ctx, sheet);
+      if (!L.ok) {
+        sheetInfo("warn", "읽는 곳: " + where + "\n<b>" + esc(L.error) + "</b>\n" + esc(L.diag));
+        return;
+      }
+      const ds = Object.keys(L.dayCols).map(Number).sort((a, b) => a - b);
+      const f = ds[0], l = ds[ds.length - 1];
+      const rowsTxt = MAP.map(m => L.rows[m.key] ? m.key + "=" + L.rows[m.key] : m.key + "=없음").join(", ");
+      sheetInfo(L.missing.length ? "warn" : "",
+        "읽는 곳: " + where + "<br>날짜 머리글 " + L.headerRow + "행: " + f + "일(" + L.dayCols[f] + "열) ~ " + l + "일(" + L.dayCols[l] + "열), " + ds.length + "개" +
+        "<br>제품 행 (" + (L.byName ? "제품명으로 찾음" : "기본 위치") + "): " + esc(rowsTxt) +
+        (L.missing.length ? "<br><b>시트에서 못 찾은 제품: " + esc(L.missing.join(", ")) + "</b> (이 제품은 입력하지 않습니다)" : "") +
+        (L.others.length ? "<br><b>같은 모양의 표가 " + L.others.join(", ") + "행에도 있습니다.</b> 위 구역(" + L.headerRow + "행)에 입력합니다." : ""));
+    });
+  } catch (e) {
+    sheetInfo("bad", "읽는 곳: " + where + "\n<b>이 탭을 읽지 못했습니다.</b> " + esc(e.message || e));
+  }
+}
+$("sheetSel").addEventListener("change", () => { store("addin_sheet", $("sheetSel").value); checkSheet(); });
+
+// ---------- 품명 해석 ----------
+function resolveName(name, prevPrefix) {
+  const s = String(name || "").toUpperCase().replace(/\s/g, "").replace(/^H5/, "HS");
+  const m = s.match(/^(HS|HK|N|H)?(\d+(?:\.\d+)?)$/);
+  if (!m) return { ok: false, msg: "품명 형식 오류", prefix: prevPrefix };
+  const prefix = m[1] || prevPrefix;
+  if (!prefix) return { ok: false, msg: "접두어(N/H/HS/HK) 없음", prefix: null };
+  const key = prefix + Number(m[2]).toFixed(1);
+  const e = MAP.find(x => x.key === key);
+  if (!e) return { ok: false, msg: "시트에 없는 품명: " + key, prefix };
+  return { ok: true, key, name: e.name, row: e.row, prefix };
+}
+
+// ---------- Gemini 판독 ----------
+const PROMPT = `이 이미지는 세방산업 '물품 반출증'(손글씨 표)입니다.
+
+[읽기 규칙]
+1. 사진이 옆으로 누워 있으면 바로 세워서 읽으세요.
+2. month, day: 상단 '반출입일시'의 월과 일 숫자 (예: 11월 6일 -> month 11, day 6).
+3. 표의 각 행(번호 1~10)을 위에서 아래로 한 행씩 읽으세요.
+   - name: 품명 칸의 글자 그대로. 예: H0.7, 0.8, 1.0, HS0.6, HS0.7, HK0.8, HK1.0, N0.6, N1.0.
+     접두어(H, HS, HK, N)가 생략된 행은 생략된 그대로 적으세요 (예: "0.8"). 접두어를 추정해서 채우지 마세요.
+   - qty: 수량 칸의 숫자 하나. 2와 7, 1과 7, 0과 8, 3과 8, 5와 6을 특히 신중히 구분하세요.
+   - cancelled: 그 행에 품명과 수량이 있는데 행 전체에 취소선이 그어져 있으면 true.
+     빈 행 여러 개에 걸쳐 그어진 큰 X나 'ㄱ'자 표시는 '이하 여백' 표시이므로 행으로 읽지 마세요.
+   - confidence: 숫자나 글자에 확신이 있으면 "high", 흐리거나 애매하면 "low".
+4. 빈 행은 items에 넣지 마세요. 사진에 없는 값을 만들지 마세요.
+5. total: 하단 '계' 칸의 숫자.
+6. 읽은 qty의 합(취소 제외)이 total과 맞는지 스스로 확인하고, 안 맞으면 다시 읽으세요.
+
+[출력]
+설명 없이 JSON만 출력하세요.
+{"month":11,"day":6,"total":63,"items":[{"name":"H0.7","qty":18,"cancelled":false,"confidence":"high"}]}`;
+
+const BUSY_RE = /high demand|overloaded|try again|quota|rate limit|exhausted/i;
+async function geminiCall(key, b64) {
+  const url = "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(S.model) + ":generateContent?key=" + encodeURIComponent(key);
+  const body = {
+    contents: [{ parts: [{ inline_data: { mime_type: "image/jpeg", data: b64 } }, { text: PROMPT }] }],
+    generationConfig: { temperature: 0, responseMimeType: "application/json", thinkingConfig: { thinkingBudget: 0 } }
+  };
+  const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const j = await r.json();
+  const msg = (j.error && j.error.message) || "";
+  if (!r.ok) {
+    const err = new Error(msg || ("HTTP " + r.status));
+    err.busy = r.status === 429 || r.status === 503 || BUSY_RE.test(msg);
+    throw err;
+  }
+  const cand = j.candidates && j.candidates[0];
+  const text = cand && cand.content ? cand.content.parts.map(p => p.text || "").join("") : "";
+  const s = text.indexOf("{"), e = text.lastIndexOf("}");
+  if (s < 0) throw new Error("판독 응답을 해석하지 못했습니다. (" + ((cand && cand.finishReason) || "응답 없음") + ")");
+  return JSON.parse(text.slice(s, e + 1));
+}
+async function geminiOnce(b64, start, onWait) {
+  const keys = S.apiKeys || [];
+  let lastErr = null;
+  for (let round = 1; round <= 3; round++) {
+    let busy = false;
+    for (let k = 0; k < keys.length; k++) {
+      try { return await geminiCall(keys[(start + k) % keys.length], b64); }
+      catch (e) { lastErr = e; if (e.busy) busy = true; }
+    }
+    if (!busy || round === 3) break;
+    onWait && onWait(4 * round);
+    await new Promise(r => setTimeout(r, 4000 * round));
+  }
+  throw new Error((lastErr ? lastErr.message : "판독 실패") + " (잠시 후 다시 시도하거나 설정에서 키를 추가하세요)");
+}
+// ---------- Claude 판독 (공식 Anthropic SDK, 브라우저 모드) ----------
+const SDK_URL = "https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk@1.3.0/+esm";
+let AnthropicSDK = null, claudeClient = null;
+async function getClaude(key) {
+  if (!AnthropicSDK) AnthropicSDK = (await import(SDK_URL)).default;
+  if (key) return new AnthropicSDK({ apiKey: key, dangerouslyAllowBrowser: true });
+  if (!claudeClient) claudeClient = new AnthropicSDK({ apiKey: S.claudeKey, dangerouslyAllowBrowser: true });
+  return claudeClient;
+}
+// JSON 형태를 강제하는 스키마 (값을 못 읽으면 0, confidence "low")
+const READ_SCHEMA = {
+  type: "object",
+  properties: {
+    month: { type: "integer" },
+    day: { type: "integer" },
+    total: { type: "integer" },
+    items: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          qty: { type: "integer" },
+          cancelled: { type: "boolean" },
+          confidence: { type: "string", enum: ["high", "low"] }
+        },
+        required: ["name", "qty", "cancelled", "confidence"],
+        additionalProperties: false
+      }
+    }
+  },
+  required: ["month", "day", "total", "items"],
+  additionalProperties: false
+};
+function claudeErrText(e) {
+  const A = AnthropicSDK;
+  if (A && e instanceof A.AuthenticationError) return "API 키가 올바르지 않습니다.";
+  if (A && e instanceof A.PermissionDeniedError) return "이 키로는 해당 모델을 쓸 수 없습니다.";
+  if (A && e instanceof A.NotFoundError) return "모델을 찾을 수 없습니다.";
+  if (A && e instanceof A.RateLimitError) return "요청 한도를 넘었습니다. 잠시 후 다시 시도하세요.";
+  if (A && e instanceof A.APIConnectionError) return "Anthropic 서버에 연결하지 못했습니다. 인터넷 연결을 확인하세요.";
+  if (A && e instanceof A.APIError) {
+    const msg = (e.error && e.error.error && e.error.error.message) || e.message;
+    if (/credit balance/i.test(msg)) return "Anthropic 계정 잔액이 부족합니다. console.anthropic.com 에서 결제를 확인하세요.";
+    if (e.status === 529 || e.status >= 500) return "Anthropic 서버가 혼잡합니다. 잠시 후 다시 시도하세요.";
+    return msg;
+  }
+  return (e && e.message) || String(e);
+}
+async function claudeOnce(b64) {
+  const client = await getClaude();
+  let res;
+  try {
+    res = await client.beta.messages.create({
+      model: S.claudeModel,
+      max_tokens: 16000,
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
+      output_config: { effort: "medium", format: { type: "json_schema", schema: READ_SCHEMA } },
+      messages: [{
+        role: "user",
+        content: [
+          { type: "image", source: { type: "base64", media_type: "image/jpeg", data: b64 } },
+          { type: "text", text: PROMPT + "\n\n못 읽은 숫자는 0으로 적고 confidence를 \"low\"로 하세요." }
+        ]
+      }]
+    });
+  } catch (e) { throw new Error(claudeErrText(e)); }
+  if (res.stop_reason === "refusal") throw new Error("판독이 거절되었습니다. 다른 사진으로 다시 시도하세요.");
+  if (res.stop_reason === "max_tokens") throw new Error("판독 응답이 잘렸습니다. 다시 판독하세요.");
+  const text = res.content.filter(b => b.type === "text").map(b => b.text).join("");
+  try { return JSON.parse(text); }
+  catch (e) { throw new Error("판독 응답을 해석하지 못했습니다."); }
+}
+function readOnce(b64, start, onWait) { return S.engine === "claude" ? claudeOnce(b64) : geminiOnce(b64, start, onWait); }
+
+function normalize(o) {
+  const num = v => (v == null || v === "" || isNaN(Number(v))) ? null : Number(v);
+  return {
+    month: num(o.month), day: num(o.day), total: num(o.total),
+    items: (o.items || []).filter(it => !it.cancelled).map(it => ({
+      name: String(it.name || "").trim(),
+      qty: num(it.qty),
+      conf: String(it.confidence || "high").toLowerCase()
+    }))
+  };
+}
+function sameRead(a, b) {
+  if (!a || !b || a.day !== b.day || a.total !== b.total || a.items.length !== b.items.length) return false;
+  return a.items.every((x, i) => x.name.toUpperCase() === b.items[i].name.toUpperCase() && x.qty === b.items[i].qty);
+}
+
+// ---------- 사진 카드 ----------
+const cards = [];   // {id, name, dataUrl, b64, rot, img, state, reads, edit, month, day, total, rows:[{name,qty,conf,alt}], checked, col, preview}
+let queue = Promise.resolve();
+
+$("file").addEventListener("change", e => { addFiles(e.target.files); e.target.value = ""; });
+const drop = $("drop");
+drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("hot"); });
+drop.addEventListener("dragleave", () => drop.classList.remove("hot"));
+drop.addEventListener("drop", e => { e.preventDefault(); drop.classList.remove("hot"); addFiles(e.dataTransfer.files); });
+
+function addFiles(files) {
+  if (!hasKey()) { go("set"); $("keyMsg").textContent = "먼저 API 키를 넣고 저장하세요."; return; }
+  [...files].filter(f => f.type.startsWith("image/")).forEach(f => {
+    const c = { id: "c" + Date.now() + Math.random().toString(36).slice(2, 6), name: f.name, rot: 0, state: "wait", rows: [], reads: [], edit: false, checked: false };
+    cards.push(c);
+    const host = document.createElement("div");
+    host.className = "card"; host.id = c.id;
+    $("cards").prepend(host);
+    render(c);
+    const fr = new FileReader();
+    fr.onload = () => {
+      const img = new Image();
+      img.onload = () => { c.img = img; encode(c); render(c); enqueueRead(c); };
+      img.src = fr.result;
+    };
+    fr.readAsDataURL(f);
+  });
+}
+function encode(c) {
+  const img = c.img, sw = img.naturalWidth, sh = img.naturalHeight;
+  const swap = c.rot % 180 !== 0;
+  const sc = Math.min(1, 1600 / Math.max(sw, sh));
+  const w = Math.round((swap ? sh : sw) * sc), h = Math.round((swap ? sw : sh) * sc);
+  const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+  const x = cv.getContext("2d");
+  x.fillStyle = "#fff"; x.fillRect(0, 0, w, h);
+  x.translate(w / 2, h / 2); x.rotate(c.rot * Math.PI / 180);
+  x.drawImage(img, -sw * sc / 2, -sh * sc / 2, sw * sc, sh * sc);
+  c.dataUrl = cv.toDataURL("image/jpeg", 0.85);
+  c.b64 = c.dataUrl.split(",")[1];
+}
+function enqueueRead(c) { c.state = "wait"; render(c); queue = queue.then(() => readCard(c)); }
+
+async function readCard(c) {
+  if (!cards.includes(c)) return;
+  c.state = "reading"; c.msg = "판독 중... (두 번 판독, 10~30초)"; render(c);
+  try {
+    const res = await Promise.allSettled([
+      readOnce(c.b64, 0, s => { c.msg = "혼잡합니다. " + s + "초 후 다시 시도"; render(c); }),
+      readOnce(c.b64, 1)
+    ]);
+    const ok = res.filter(r => r.status === "fulfilled").map(r => normalize(r.value));
+    if (!ok.length) throw res[0].reason;
+    c.reads = ok;
+    const a = ok[0], b = ok[1];
+    c.month = a.month; c.day = a.day; c.total = a.total;
+    c.rows = a.items.map((it, i) => ({ name: it.name, qty: it.qty, conf: it.conf, alt: b ? b.items[i] || null : null }));
+    if (b && b.items.length > a.items.length) b.items.slice(a.items.length).forEach(it => c.rows.push({ name: "", qty: null, conf: "low", alt: it }));
+    c.altHead = b ? { day: b.day, total: b.total } : null;
+    c.state = "review"; c.edit = false; c.checked = false; c.preview = null;
+  } catch (e) {
+    c.state = "error"; c.msg = e.message || String(e);
+  }
+  render(c);
+}
+
+// 판정: hard = 입력 불가, soft = 사진과 대조 체크 필요
+function evaluate(c) {
+  const hard = [], soft = [];
+  let prev = null, sum = 0;
+  const vals = {};          // row -> qty
+  const resolved = c.rows.map(r => {
+    const rr = resolveName(r.name, prev); prev = rr.prefix || prev;
+    if (!String(r.name).trim()) { hard.push("품명이 빈 줄이 있습니다."); return rr; }
+    if (!rr.ok) hard.push(rr.msg);
+    if (r.qty == null || !Number.isInteger(r.qty) || r.qty < 0) hard.push("수량이 비었거나 잘못된 줄이 있습니다.");
+    else if (rr.ok) { vals[rr.row] = (vals[rr.row] || 0) + r.qty; sum += r.qty; }
+    return rr;
+  });
+  if (!c.day || c.day < 1 || c.day > 31) hard.push("날짜(일)가 없습니다.");
+  if (c.total == null) hard.push("사진의 계(합계)가 없습니다.");
+  else if (c.total !== sum) hard.push("품목 합 " + sum + " ≠ 사진 계 " + c.total);
+  if (!c.rows.length) hard.push("품목이 없습니다.");
+  const dupDay = cards.find(o => o !== c && o.state === "done" && o.day === c.day && o.sheet === $("sheetSel").value);
+  if (dupDay) soft.push(c.day + "일은 이번에 이미 입력한 사진이 있습니다.");
+  if (c.reads.length < 2) soft.push("판독이 1회만 성공했습니다.");
+  else if (!sameRead(c.reads[0], c.reads[1])) soft.push("두 번의 판독 결과가 다릅니다 (주황색 줄).");
+  if (c.rows.some(r => r.conf === "low")) soft.push("판독이 애매한 줄이 있습니다 (빨간 줄).");
+  return { hard: [...new Set(hard)], soft, sum, vals, resolved };
+}
+
+function render(c) {
+  const host = $(c.id); if (!host) return;
+  const thumb = c.dataUrl ? '<img src="' + c.dataUrl + '" alt="사진" data-act="zoom">' : '<div style="width:64px;height:84px;background:#eee"></div>';
+  const title = c.day ? (c.month ? c.month + "월 " : "") + c.day + "일 반출증" : "반출증";
+  let h = '<div class="top">' + thumb + '<div class="meta"><b>' + esc(title) + '</b><div class="muted">' + esc(c.name) + '</div>' +
+    '<div class="btns"><button class="ghost" data-act="rotL">↺ 90°</button><button class="ghost" data-act="rotR">↻ 90°</button><button class="ghost danger" data-act="remove">삭제</button></div></div></div><div class="body">';
+
+  if (c.state === "wait") h += '<div class="banner busy">판독 대기 중...</div>';
+  else if (c.state === "reading") h += '<div class="banner busy">' + esc(c.msg) + '</div>';
+  else if (c.state === "error") h += '<div class="banner bad"><b>판독 실패</b>\n' + esc(c.msg) + '</div><div class="btns"><button class="btn grow" data-act="reread">다시 판독</button></div>';
+  else {
+    const ev = evaluate(c);
+    if (c.state === "done") h += '<div class="banner done">✔ 시트 입력 완료: ' + esc(c.sheet) + ' 탭, ' + c.day + '일 (' + esc(c.col) + '열), 합계 ' + ev.sum + '</div>';
+    else if (ev.hard.length) h += '<div class="banner bad"><b>수정이 필요합니다</b><ul>' + ev.hard.map(x => "<li>" + esc(x) + "</li>").join("") + '</ul></div>';
+    else if (ev.soft.length) h += '<div class="banner warn"><b>사진과 대조해 주세요</b><ul>' + ev.soft.map(x => "<li>" + esc(x) + "</li>").join("") + '</ul></div>';
+    else h += '<div class="banner ok"><b>✔ 맞습니다</b>\n두 번 판독이 같고, 품목 합 ' + ev.sum + ' = 사진 계 ' + c.total + '</div>';
+
+    const dis = c.edit ? "" : " disabled";
+    h += '<div class="fields">날짜 <input type="number" data-f="month" min="1" max="12" value="' + (c.month ?? "") + '"' + dis + '>월 ' +
+      '<input type="number" data-f="day" min="1" max="31" value="' + (c.day ?? "") + '"' + dis + '>일' +
+      (c.altHead && c.altHead.day !== c.day ? ' <span class="alt">(2회차: ' + esc(c.altHead.day) + '일)</span>' : '') + '</div>';
+    h += '<table class="items"><thead><tr><th></th><th>품명</th><th>수량</th><th>시트 제품 (행)</th>' + (c.edit ? '<th></th>' : '') + '</tr></thead><tbody>';
+    c.rows.forEach((r, i) => {
+      const rr = ev.resolved[i];
+      const altDiff = r.alt && (r.alt.name.toUpperCase() !== String(r.name).toUpperCase() || r.alt.qty !== r.qty);
+      const cls = r.conf === "low" ? "low" : altDiff ? "diff" : "";
+      h += '<tr class="' + cls + '"><td class="no">' + (i + 1) + '</td>' +
+        '<td><input type="text" class="nm" data-i="' + i + '" data-k="name" value="' + esc(r.name) + '"' + dis + '></td>' +
+        '<td><input type="number" class="qt" min="0" data-i="' + i + '" data-k="qty" value="' + (r.qty ?? "") + '"' + dis + '></td>' +
+        '<td>' + (rr && rr.ok ? '<span class="tag ok">' + esc(rr.name) + ' (' + rr.row + ')</span>' : '<span class="tag bad">' + esc(rr ? rr.msg : "") + '</span>') +
+        (altDiff ? '<div class="alt">2회차: ' + esc(r.alt.name) + ' / ' + esc(r.alt.qty) + '</div>' : '') + '</td>' +
+        (c.edit ? '<td><button class="ghost danger" data-act="delrow" data-i="' + i + '">✕</button></td>' : '') + '</tr>';
+    });
+    h += '</tbody></table>';
+    if (c.edit) h += '<div class="btns"><button class="ghost" data-act="addrow">+ 줄 추가</button></div>';
+    h += '<div class="sumline">품목 합 ' + ev.sum + ' / 사진 계 <input type="number" data-f="total" style="width:56px;text-align:right" value="' + (c.total ?? "") + '"' + dis + '>' +
+      (c.altHead && c.altHead.total !== c.total ? ' <span class="alt">(2회차: ' + esc(c.altHead.total) + ')</span>' : '') + '</div>';
+
+    if (c.state === "review") {
+      if (c.edit) {
+        h += '<div class="btns"><button class="btn grow" data-act="editDone">수정 완료</button></div>';
+      } else if (c.preview) {
+        h += renderPreview(c.preview);
+      } else {
+        if (!ev.hard.length && ev.soft.length) h += '<label class="chk"><input type="checkbox" data-act="check"' + (c.checked ? " checked" : "") + '> 사진과 한 줄씩 대조했습니다</label>';
+        const can = !ev.hard.length && (!ev.soft.length || c.checked);
+        h += '<div class="btns"><button class="btn grow" data-act="write"' + (can ? "" : " disabled") + '>시트에 입력</button>' +
+          '<button class="ghost" data-act="edit">수정</button><button class="ghost" data-act="reread">다시 판독</button></div>';
+        if (c.writeErr) h += '<div class="banner bad" style="margin-top:8px">' + esc(c.writeErr) + '</div>';
+      }
+    }
+  }
+  h += '</div>';
+  host.innerHTML = h;
+}
+
+function renderPreview(p) {
+  let h = '<div class="banner warn" style="margin-top:8px"><b>입력 내용 확인</b>\n' + esc(p.sheet) + ' 탭 · ' + p.day + '일 = ' + esc(p.col) + '열' +
+    (p.warn.length ? '<ul>' + p.warn.map(x => '<li>' + esc(x) + '</li>').join("") + '</ul>' : '') + '</div>';
+  h += '<table class="prev"><tr><th>제품</th><th class="num">현재 값</th><th class="num">입력할 값</th></tr>';
+  p.lines.forEach(l => {
+    h += '<tr class="' + (l.oldV !== l.newV ? "chg" : "") + '"><td>' + esc(l.name) + ' <span class="muted">(' + esc(p.col + l.row) + ')</span></td><td class="num">' + esc(l.oldV === "" ? "-" : l.oldV) + '</td><td class="num"><b>' + esc(l.newV === "" ? "-" : l.newV) + '</b></td></tr>';
+  });
+  h += '</table><div class="btns"><button class="btn grow" data-act="confirm">확정 입력</button><button class="ghost" data-act="cancelPrev">취소</button></div>';
+  return h;
+}
+
+// 카드 이벤트 (위임)
+$("cards").addEventListener("click", async e => {
+  const t = e.target.closest("[data-act]"); if (!t) return;
+  const c = cards.find(x => x.id === t.closest(".card").id); if (!c) return;
+  const act = t.dataset.act;
+  if (act === "zoom") { $("zoomImg").src = c.dataUrl; $("zoom").classList.add("on"); return; }
+  if (act === "check") { c.checked = t.checked; render(c); return; }
+  if (act === "remove") { cards.splice(cards.indexOf(c), 1); $(c.id).remove(); return; }
+  if (act === "rotL" || act === "rotR") { if (!c.img || c.state === "reading") return; c.rot = (c.rot + (act === "rotL" ? 270 : 90)) % 360; encode(c); enqueueRead(c); return; }
+  if (act === "reread") { c.writeErr = null; enqueueRead(c); return; }
+  if (act === "edit") { c.edit = true; c.preview = null; render(c); return; }
+  if (act === "editDone") { c.edit = false; c.checked = true; render(c); return; }
+  if (act === "addrow") { c.rows.push({ name: "", qty: null, conf: "high", alt: null }); render(c); return; }
+  if (act === "delrow") { c.rows.splice(Number(t.dataset.i), 1); render(c); return; }
+  if (act === "cancelPrev") { c.preview = null; render(c); return; }
+  if (act === "write") {
+    t.disabled = true; c.writeErr = null;
+    try { const ev = evaluate(c); c.preview = await buildPreview(c.day, c.month, ev.vals); }
+    catch (err) { c.writeErr = "입력 준비 실패: " + err.message; }
+    render(c); return;
+  }
+  if (act === "confirm") {
+    t.disabled = true;
+    try { await writePreview(c.preview); c.state = "done"; c.col = c.preview.col; c.sheet = c.preview.sheet; c.preview = null; }
+    catch (err) { c.preview = null; c.writeErr = "입력 실패 (시트 변경 없음): " + err.message; }
+    render(c); return;
+  }
+});
+// 수정 모드 입력값 반영 (다시 그리지 않고 값만 저장, 포커스 이동 시 다시 그림)
+$("cards").addEventListener("input", e => {
+  const el = e.target, card = el.closest(".card"); if (!card) return;
+  const c = cards.find(x => x.id === card.id); if (!c) return;
+  const v = el.value.trim();
+  if (el.dataset.f) c[el.dataset.f] = v === "" ? null : Number(v);
+  else if (el.dataset.k === "name") { c.rows[+el.dataset.i].name = v; c.rows[+el.dataset.i].conf = "high"; }
+  else if (el.dataset.k === "qty") { c.rows[+el.dataset.i].qty = v === "" ? null : Number(v); c.rows[+el.dataset.i].conf = "high"; }
+});
+$("cards").addEventListener("change", e => {
+  const card = e.target.closest(".card"); if (!card || e.target.dataset.act === "check") return;
+  const c = cards.find(x => x.id === card.id); if (c) render(c);
+});
+
+// ---------- 시트 쓰기 ----------
+// vals: { row: qty } . 매핑된 모든 행을 쓰고, 없는 제품은 빈칸으로 둡니다 (65행 등 매핑 외 행은 건드리지 않음)
+function colName(i) { let s = ""; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; }
+
+// ---------- 시트 구조 찾기 ----------
+// 날짜 머리글 행(1일~31일)과 제품 행을 찾습니다.
+// 머리글은 "1일" 글자, 숫자 1~31 (서식으로 "1일"처럼 보이는 경우 포함), 날짜(2026-11-01 등)를 모두 인식합니다.
+// 제품 행은 시트에 적힌 제품명(PEN. 120 * 0.6 * 0.20 등)으로 찾고, 못 찾으면 기본 위치(58~67행)를 씁니다.
+const SCAN = "A1:CZ200";
+function normName(s) { return String(s == null ? "" : s).toUpperCase().replace(/×/g, "*").replace(/\s/g, ""); }
+function cellDay(v, t) {
+  const tx = String(t == null ? "" : t).replace(/\s/g, "");
+  let m = tx.match(/^(\d{1,2})일$/);                                     // "1일"
+  if (m && +m[1] >= 1 && +m[1] <= 31) return +m[1];
+  if (typeof v === "number") {
+    if (Number.isInteger(v) && v >= 1 && v <= 31 && /^\d{1,2}(일)?$/.test(tx)) return v;   // 숫자 1~31
+    if (v > 40000 && v < 60000) return new Date(Math.round((v - 25569) * 86400000)).getUTCDate(); // 엑셀 날짜
+  }
+  m = tx.match(/^(\d{1,2})[\/.\-](\d{1,2})\.?$/);                        // "11/1", "11.1"
+  if (m && +m[2] >= 1 && +m[2] <= 31) return +m[2];
+  m = tx.match(/^(\d{1,2})월(\d{1,2})일$/);                              // "11월1일"
+  if (m) return +m[2];
+  return 0;
+}
+async function locateLayout(ctx, sheet) {
+  const rg = ctx.workbook.worksheets.getItem(sheet).getRange(SCAN);
+  rg.load("values, text");
+  await ctx.sync();
+  const V = rg.values, T = rg.text;
+  // 1) 날짜 머리글 후보 행: 서로 다른 날짜가 15개 이상이고, 왼쪽→오른쪽으로 커지는 순서
+  //    (수량 줄에 1~31 사이 숫자가 많아도 순서가 뒤섞여 있으므로 머리글로 잡히지 않음)
+  const heads = [];
+  for (let r = 0; r < V.length; r++) {
+    const cols = {}, seq = []; let dup = false;
+    for (let c = 0; c < V[r].length; c++) {
+      const d = cellDay(V[r][c], T[r][c]);
+      if (d) { seq.push(d); if (cols[d]) dup = true; else cols[d] = colName(c); }
+    }
+    if (Object.keys(cols).length < 15) continue;
+    let up = 0; for (let i = 1; i < seq.length; i++) if (seq[i] > seq[i - 1]) up++;
+    if (up >= (seq.length - 1) * 0.9) heads.push({ row: r + 1, cols, dup });
+  }
+  // 2) 제품명 위치 (A~H열)
+  const nameHits = {};
+  MAP.forEach(m => nameHits[m.key] = []);
+  for (let r = 0; r < V.length; r++) for (let c = 0; c < 8; c++) {
+    const n = normName(T[r][c] || V[r][c]);
+    if (!n) continue;
+    MAP.forEach(m => { if (n === normName(m.name)) nameHits[m.key].push(r + 1); });
+  }
+  const anyName = MAP.some(m => nameHits[m.key].length);
+  if (!heads.length) {
+    // 진단: 57행 내용과 제품명 위치를 보여 줍니다
+    const r57 = (T[HEADER_ROW - 1] || []).map((t, c) => t ? colName(c) + "=" + t : "").filter(Boolean).slice(0, 8).join(", ");
+    const nm = MAP.filter(m => nameHits[m.key].length).map(m => m.key + "→" + nameHits[m.key].join("/") + "행").join(", ");
+    return { ok: false, error: "1~200행에서 날짜 머리글(1일~31일) 줄을 찾지 못했습니다.",
+      diag: HEADER_ROW + "행 내용: " + (r57 || "(비어 있음)") + "\n제품명 위치: " + (nm || "찾지 못함") };
+  }
+  // 3) 머리글 행 고르기: 그 아래에서 제품명이 가장 많이 잡히는 행. 같으면 57행, 그다음 위쪽 행
+  const pick = h => {
+    const next = heads.find(x => x.row > h.row);
+    const rows = {};
+    MAP.forEach(m => { const r = nameHits[m.key].find(r => r > h.row && (!next || r < next.row)); if (r) rows[m.key] = r; });
+    return rows;
+  };
+  let best = null;
+  heads.forEach(h => {
+    const rows = pick(h), n = Object.keys(rows).length;
+    if (!best || n > best.n || (n === best.n && h.row === HEADER_ROW)) best = { h, rows, n };
+  });
+  let rows = best.rows, byName = best.n > 0, missing = [];
+  if (!byName) {
+    if (anyName) {
+      return { ok: false, error: "날짜 머리글 아래에서 제품명을 찾지 못했습니다.",
+        diag: "머리글 행: " + heads.map(h => h.row).join(", ") + "\n제품명 위치: " + MAP.filter(m => nameHits[m.key].length).map(m => m.key + "→" + nameHits[m.key].join("/")).join(", ") };
+    }
+    rows = {}; MAP.forEach(m => rows[m.key] = m.row);   // 시트에 제품명이 없으면 기본 위치
+  } else {
+    missing = MAP.filter(m => !rows[m.key]).map(m => m.key);
+  }
+  if (best.h.dup) return { ok: false, error: best.h.row + "행에 같은 날짜 머리글이 두 번 이상 있습니다.", diag: "시트를 확인하세요." };
+  // 같은 모양의 구역이 더 있으면 알려 줌 (어느 구역에 쓰는지 확인용)
+  const others = heads.filter(h => h !== best.h && Object.keys(pick(h)).length === best.n && best.n > 0).map(h => h.row);
+  return { ok: true, headerRow: best.h.row, dayCols: best.h.cols, rows, byName, missing, others };
+}
+
+async function buildPreview(day, month, vals) {
+  if (!IN_EXCEL) throw new Error("엑셀 안에서 열어야 입력할 수 있습니다.");
+  const sheet = $("sheetSel").value;
+  if (!sheet) throw new Error("입력할 시트 탭이 없습니다. 위의 [새로고침]을 눌러 탭 목록을 다시 읽으세요.");
+  return await Excel.run(async ctx => {
+    const sh = ctx.workbook.worksheets.getItem(sheet);
+    const L = await locateLayout(ctx, sheet);
+    if (!L.ok) throw new Error(L.error + " " + L.diag);
+    const col = L.dayCols[day];
+    if (!col) throw new Error(L.headerRow + "행에서 " + day + "일 머리글을 찾지 못했습니다.");
+    // vals 는 기본 행 번호 기준 → 시트에서 찾은 행으로 옮김
+    const blocked = MAP.filter(m => !L.rows[m.key] && vals[m.row]).map(m => m.key);
+    if (blocked.length) throw new Error("시트에서 이 제품의 행을 찾지 못했습니다: " + blocked.join(", "));
+    const use = MAP.filter(m => L.rows[m.key]);
+    const cells = use.map(m => { const c = sh.getRange(col + L.rows[m.key]); c.load("values"); return c; });
+    const nameCells = use.map(m => { const c = sh.getRange("A" + L.rows[m.key] + ":H" + L.rows[m.key]); c.load("text"); return c; });
+    await ctx.sync();
+    const lines = use.map((m, i) => {
+      const oldV = cells[i].values[0][0];
+      const nv = vals[m.row] || 0;
+      const label = nameCells[i].text[0].find(t => normName(t) === normName(m.name)) || m.name;
+      return { row: L.rows[m.key], name: m.key, label, oldV: oldV === null ? "" : oldV, newV: nv === 0 ? "" : nv };
+    });
+    const warn = [];
+    if (lines.some(l => l.oldV !== "")) warn.push("이 날짜에 이미 값이 있습니다. 확정하면 덮어씁니다.");
+    if (!L.byName) warn.push("시트에서 제품명을 찾지 못해 기본 행(58~67행)에 입력합니다. 행이 맞는지 꼭 확인하세요.");
+    if (L.others.length) warn.push("같은 모양의 표가 " + L.others.join(", ") + "행에도 있습니다. " + L.headerRow + "행 표에 입력합니다.");
+    const mm = (sheet + " " + WB_NAME).match(/(\d{1,2})\s*월/);
+    if (month && mm && Number(mm[1]) !== month) warn.push("사진은 " + month + "월인데 시트는 '" + mm[0] + "'입니다.");
+    return { sheet, day, col, headerRow: L.headerRow, lines, warn };
+  });
+}
+async function writePreview(p) {
+  await Excel.run(async ctx => {
+    const sh = ctx.workbook.worksheets.getItem(p.sheet);
+    const head = sh.getRange(p.col + p.headerRow); head.load("values, text");
+    await ctx.sync();
+    if (cellDay(head.values[0][0], head.text[0][0]) !== p.day) throw new Error("머리글이 바뀌었습니다. 다시 시도하세요.");
+    p.lines.forEach(l => { sh.getRange(p.col + l.row).values = [[l.newV]]; });
+    await ctx.sync();
+  });
+}
+
+// ---------- 직접 입력 ----------
+function initManual() {
+  for (let d = 1; d <= 31; d++) $("mDay").insertAdjacentHTML("beforeend", "<option value='" + d + "'>" + d + "일</option>");
+  $("mDay").value = new Date().getDate();
+  $("mRows").innerHTML = MAP.map((m, i) => "<tr><td>" + esc(m.name) + "</td><td class='q'><input type='number' min='0' data-row='" + m.row + "'></td></tr>").join("");
+  $("mRows").addEventListener("input", () => { mSum(); $("mPreview").innerHTML = ""; });
+  $("mDay").addEventListener("change", () => $("mPreview").innerHTML = "");
+}
+function mVals() { const v = {}; $("mRows").querySelectorAll("input").forEach(i => { const n = Number(i.value) || 0; if (n) v[i.dataset.row] = n; }); return v; }
+function mSum() { const s = Object.values(mVals()).reduce((a, b) => a + b, 0); $("mTotal").textContent = s; return s; }
+let mPrev = null;
+async function manualWrite() {
+  if (!mSum()) { $("mPreview").innerHTML = '<div class="banner bad" style="margin-top:8px">납품량을 한 개 이상 입력하세요.</div>'; return; }
+  try {
+    mPrev = await buildPreview(Number($("mDay").value), null, mVals());
+    $("mPreview").innerHTML = renderPreview(mPrev);
+  } catch (e) { $("mPreview").innerHTML = '<div class="banner bad" style="margin-top:8px">' + esc(e.message) + '</div>'; }
+}
+$("mPreview").addEventListener("click", async e => {
+  const t = e.target.closest("[data-act]"); if (!t) return;
+  if (t.dataset.act === "cancelPrev") { $("mPreview").innerHTML = ""; return; }
+  if (t.dataset.act === "confirm") {
+    t.disabled = true;
+    try {
+      await writePreview(mPrev);
+      $("mPreview").innerHTML = '<div class="banner done" style="margin-top:8px">✔ 입력 완료: ' + esc(mPrev.sheet) + ' 탭, ' + mPrev.day + '일 (' + esc(mPrev.col) + '열), 합계 ' + mSum() + '</div>';
+    } catch (err) { $("mPreview").innerHTML = '<div class="banner bad" style="margin-top:8px">입력 실패 (시트 변경 없음): ' + esc(err.message) + '</div>'; }
+  }
+});
+
+// ---------- 시작 ----------
+function start(info) {
+  IN_EXCEL = !!(info && info.host === Office.HostType.Excel);
+  loadSettingsUI(); initManual(); loadSheets();
+  if (!hasKey()) { go("set"); $("keyMsg").textContent = "사진 판독을 쓰려면 API 키를 넣고 저장하세요."; }
+}
+if (window.Office) Office.onReady(start); else start(null);
+</script>
+</body>
+</html>
