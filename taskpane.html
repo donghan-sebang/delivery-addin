@@ -121,8 +121,8 @@
     <div class="box">
       <label class="f" style="margin-top:0" for="engine">판독 엔진</label>
       <select id="engine" class="w100" onchange="showEngine()">
-        <option value="claude">Claude (Anthropic)</option>
-        <option value="gemini">Gemini (Google)</option>
+        <option value="gemini">Gemini (Google, 무료 키 가능)</option>
+        <option value="claude">Claude (Anthropic, 유료)</option>
       </select>
 
       <div id="eng-claude">
@@ -144,7 +144,7 @@
           <option value="gemini-3.8-flash">gemini-3.8-flash</option>
           <option value="gemini-3.6-flash">gemini-3.6-flash</option>
         </select>
-        <p class="muted">키를 여러 개 넣으면 한도 초과나 혼잡일 때 다음 키로 넘어갑니다. 사진은 판독을 위해 Google 서버로 전송됩니다.</p>
+        <p class="muted">키 발급: aistudio.google.com 에서 구글 로그인 → Get API key. 키를 여러 개 넣으면 한도 초과나 혼잡일 때 다음 키로 넘어갑니다 (서로 다른 Google 프로젝트에서 만든 키여야 한도가 늘어납니다). 키는 이 PC의 추가 기능 저장소에만 저장되고, 사진은 판독을 위해 Google 서버로 전송됩니다.</p>
       </div>
 
       <div class="btns">
@@ -183,7 +183,7 @@ function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ 
 function store(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 function load(k, def) { try { const s = localStorage.getItem(k); if (s) return JSON.parse(s); } catch (e) {} return def; }
 
-let S = Object.assign({ engine: "claude", claudeKey: "", claudeModel: "claude-opus-5-5", apiKeys: [], model: "gemini-3.8-flash" }, load("addin_settings", {}));
+let S = Object.assign({ engine: "gemini", claudeKey: "", claudeModel: "claude-opus-5-5", apiKeys: [], model: "gemini-3.8-flash" }, load("addin_settings", {}));
 function hasKey() { return S.engine === "claude" ? !!S.claudeKey : !!(S.apiKeys && S.apiKeys.length); }
 let IN_EXCEL = false;
 
