@@ -76,7 +76,7 @@
 </style>
 </head>
 <body>
-<header>세방 납품량 입력 <span style="float:right;font-weight:normal;font-size:11px;opacity:.75">v1.5 (11/12)</span></header>
+<header>세방 납품량 입력 <span style="float:right;font-weight:normal;font-size:11px;opacity:.75">v1.6 (11/12)</span></header>
 <nav>
   <button id="tab-photo" class="on" onclick="go('photo')">사진 판독</button>
   <button id="tab-manual" onclick="go('manual')">직접 입력</button>
@@ -298,7 +298,8 @@ async function checkSheet() {
       const f = ds[0], l = ds[ds.length - 1];
       const rowsTxt = MAP.map(m => L.rows[m.key] ? m.key + "=" + L.rows[m.key] : m.key + "=없음").join(", ");
       sheetInfo(L.missing.length ? "warn" : "",
-        "읽는 곳: " + where + "<br>날짜 머리글 " + L.headerRow + "행: " + f + "일(" + L.dayCols[f] + "열) ~ " + l + "일(" + L.dayCols[l] + "열), " + ds.length + "개" +
+        "읽는 곳: " + where + "<br>날짜 머리글 " + L.headerRow + "행: " + (L.month ? L.month + "월 " : "") + f + "일(" + L.dayCols[f] + "열) ~ " + l + "일(" + L.dayCols[l] + "열), " + ds.length + "개" +
+        (L.cut ? " <span class='muted'>(" + L.cut + "열부터는 날짜가 다시 시작해서 제외)</span>" : "") +
         "<br>제품 행 (" + (L.byName ? "제품명으로 찾음" : "기본 위치") + "): " + esc(rowsTxt) +
         (L.missing.length ? "<br><b>시트에서 못 찾은 제품: " + esc(L.missing.join(", ")) + "</b> (이 제품은 입력하지 않습니다)" : "") +
         (L.others.length ? "<br><b>같은 모양의 표가 " + L.others.join(", ") + "행에도 있습니다.</b> 위 구역(" + L.headerRow + "행)에 입력합니다." : ""));
@@ -702,16 +703,31 @@ async function locateLayout(ctx, sheet) {
   const V = rg.values, T = rg.text;
   // 1) 날짜 머리글 후보 행: 서로 다른 날짜가 15개 이상이고, 왼쪽→오른쪽으로 커지는 순서
   //    (수량 줄에 1~31 사이 숫자가 많아도 순서가 뒤섞여 있으므로 머리글로 잡히지 않음)
+  //    같은 줄 오른쪽에 날짜가 다시 시작하면(다음 달 1일, 옆 표 등) 첫 번째 묶음만 씁니다.
   const heads = [];
   for (let r = 0; r < V.length; r++) {
-    const cols = {}, seq = []; let dup = false;
+    let run = [], best = [];
     for (let c = 0; c < V[r].length; c++) {
       const d = cellDay(V[r][c], T[r][c]);
-      if (d) { seq.push(d); if (cols[d]) dup = true; else cols[d] = colName(c); }
+      if (!d) continue;
+      if (run.length && d <= run[run.length - 1].d) {        // 날짜가 다시 작아짐 → 묶음 끝
+        if (run.length > best.length) best = run;
+        if (best.length >= 15) break;                          // 첫 번째 큰 묶음을 찾았으면 그만
+        run = [];
+      }
+      run.push({ d, c, v: V[r][c] });
     }
-    if (Object.keys(cols).length < 15) continue;
-    let up = 0; for (let i = 1; i < seq.length; i++) if (seq[i] > seq[i - 1]) up++;
-    if (up >= (seq.length - 1) * 0.9) heads.push({ row: r + 1, cols, dup });
+    if (run.length > best.length) best = run;
+    if (best.length < 15) continue;
+    const cols = {};
+    best.forEach(x => cols[x.d] = colName(x.c));
+    const lastC = best[best.length - 1].c;
+    let cut = "";
+    for (let c = lastC + 1; c < V[r].length; c++) if (cellDay(V[r][c], T[r][c])) { cut = colName(c); break; }
+    // 엑셀 날짜 값이면 몇 월인지도 기억 (사진 월과 비교용)
+    const ser = best.filter(x => typeof x.v === "number" && x.v > 40000);
+    const month = ser.length === best.length ? new Date(Math.round((ser[0].v - 25569) * 86400000)).getUTCMonth() + 1 : null;
+    heads.push({ row: r + 1, cols, cut, month });
   }
   // 2) 제품명 위치 (A~H열)
   const nameHits = {};
@@ -751,10 +767,9 @@ async function locateLayout(ctx, sheet) {
   } else {
     missing = MAP.filter(m => !rows[m.key]).map(m => m.key);
   }
-  if (best.h.dup) return { ok: false, error: best.h.row + "행에 같은 날짜 머리글이 두 번 이상 있습니다.", diag: "시트를 확인하세요." };
   // 같은 모양의 구역이 더 있으면 알려 줌 (어느 구역에 쓰는지 확인용)
   const others = heads.filter(h => h !== best.h && Object.keys(pick(h)).length === best.n && best.n > 0).map(h => h.row);
-  return { ok: true, headerRow: best.h.row, dayCols: best.h.cols, rows, byName, missing, others };
+  return { ok: true, headerRow: best.h.row, dayCols: best.h.cols, cut: best.h.cut, month: best.h.month, rows, byName, missing, others };
 }
 
 async function buildPreview(day, month, vals) {
@@ -785,7 +800,8 @@ async function buildPreview(day, month, vals) {
     if (!L.byName) warn.push("시트에서 제품명을 찾지 못해 기본 행(58~67행)에 입력합니다. 행이 맞는지 꼭 확인하세요.");
     if (L.others.length) warn.push("같은 모양의 표가 " + L.others.join(", ") + "행에도 있습니다. " + L.headerRow + "행 표에 입력합니다.");
     const mm = (sheet + " " + WB_NAME).match(/(\d{1,2})\s*월/);
-    if (month && mm && Number(mm[1]) !== month) warn.push("사진은 " + month + "월인데 시트는 '" + mm[0] + "'입니다.");
+    const sheetMonth = L.month || (mm ? Number(mm[1]) : null);
+    if (month && sheetMonth && sheetMonth !== month) warn.push("사진은 " + month + "월인데 시트는 " + sheetMonth + "월입니다.");
     return { sheet, day, col, headerRow: L.headerRow, lines, warn };
   });
 }
