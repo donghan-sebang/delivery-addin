@@ -119,14 +119,34 @@
   <!-- ===== 설정 ===== -->
   <section id="page-set" class="page">
     <div class="box">
-      <label class="f" style="margin-top:0" for="apiKeys">Gemini API 키 (한 줄에 하나)</label>
-      <textarea id="apiKeys" rows="4" class="w100" placeholder="AIza..."></textarea>
-      <p class="muted">키를 여러 개 넣으면 한도 초과나 혼잡일 때 다음 키로 넘어갑니다. 키는 이 PC의 추가 기능 저장소에만 저장됩니다. 사진은 판독을 위해 Google 서버로 전송됩니다.</p>
-      <label class="f" for="model">모델</label>
-      <select id="model" class="w100">
-        <option value="gemini-3.8-flash">gemini-3.8-flash</option>
-        <option value="gemini-3.6-flash">gemini-3.6-flash</option>
+      <label class="f" style="margin-top:0" for="engine">판독 엔진</label>
+      <select id="engine" class="w100" onchange="showEngine()">
+        <option value="claude">Claude (Anthropic)</option>
+        <option value="gemini">Gemini (Google)</option>
       </select>
+
+      <div id="eng-claude">
+        <label class="f" for="claudeKey">Claude API 키</label>
+        <input type="text" id="claudeKey" class="w100" placeholder="sk-ant-..." autocomplete="off">
+        <label class="f" for="claudeModel">모델</label>
+        <select id="claudeModel" class="w100">
+          <option value="claude-opus-5-5">Claude Opus 5.5 (가장 정확)</option>
+          <option value="claude-sonnet-5-5">Claude Sonnet 5.5 (더 저렴)</option>
+        </select>
+        <p class="muted">키는 console.anthropic.com 에서 발급합니다. 키는 이 PC의 추가 기능 저장소에만 저장되고, 사진은 판독을 위해 Anthropic 서버로 전송됩니다.</p>
+      </div>
+
+      <div id="eng-gemini" style="display:none">
+        <label class="f" for="apiKeys">Gemini API 키 (한 줄에 하나)</label>
+        <textarea id="apiKeys" rows="4" class="w100" placeholder="AIza..."></textarea>
+        <label class="f" for="model">모델</label>
+        <select id="model" class="w100">
+          <option value="gemini-3.8-flash">gemini-3.8-flash</option>
+          <option value="gemini-3.6-flash">gemini-3.6-flash</option>
+        </select>
+        <p class="muted">키를 여러 개 넣으면 한도 초과나 혼잡일 때 다음 키로 넘어갑니다. 사진은 판독을 위해 Google 서버로 전송됩니다.</p>
+      </div>
+
       <div class="btns">
         <button class="ghost" onclick="testKeys()">키 테스트</button>
         <button class="btn grow" onclick="saveSettings()">저장</button>
@@ -163,7 +183,8 @@ function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ 
 function store(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 function load(k, def) { try { const s = localStorage.getItem(k); if (s) return JSON.parse(s); } catch (e) {} return def; }
 
-let S = Object.assign({ apiKeys: [], model: "gemini-3.8-flash" }, load("addin_settings", {}));
+let S = Object.assign({ engine: "claude", claudeKey: "", claudeModel: "claude-opus-5-5", apiKeys: [], model: "gemini-3.8-flash" }, load("addin_settings", {}));
+function hasKey() { return S.engine === "claude" ? !!S.claudeKey : !!(S.apiKeys && S.apiKeys.length); }
 let IN_EXCEL = false;
 
 function go(name) {
@@ -175,18 +196,42 @@ function go(name) {
 
 // ---------- 설정 ----------
 function parseKeys(t) { return String(t || "").split(/[\r\n,;\s]+/).map(x => x.trim()).filter(Boolean); }
+function showEngine() {
+  const e = $("engine").value;
+  $("eng-claude").style.display = e === "claude" ? "" : "none";
+  $("eng-gemini").style.display = e === "gemini" ? "" : "none";
+}
 function loadSettingsUI() {
+  $("engine").value = S.engine;
+  $("claudeKey").value = S.claudeKey || "";
+  $("claudeModel").value = S.claudeModel;
+  showEngine();
   $("apiKeys").value = (S.apiKeys || []).join("\n");
   $("model").value = S.model;
   $("mapView").innerHTML = MAP.map(m => "<tr><td>" + esc(m.key) + "</td><td>" + esc(m.name) + "</td><td class='num'>" + m.row + "행</td></tr>").join("");
 }
 function saveSettings() {
+  S.engine = $("engine").value;
+  S.claudeKey = $("claudeKey").value.trim();
+  S.claudeModel = $("claudeModel").value;
   S.apiKeys = parseKeys($("apiKeys").value);
   S.model = $("model").value;
   store("addin_settings", S);
-  $("keyMsg").textContent = "저장했습니다. (키 " + S.apiKeys.length + "개)";
+  claudeClient = null;
+  $("keyMsg").textContent = "저장했습니다. (" + (S.engine === "claude" ? "Claude" : "Gemini 키 " + S.apiKeys.length + "개") + ")";
 }
 async function testKeys() {
+  if ($("engine").value === "claude") {
+    const key = $("claudeKey").value.trim();
+    if (!key) { $("keyMsg").textContent = "키를 입력하세요."; return; }
+    $("keyMsg").textContent = "확인 중...";
+    try {
+      const client = await getClaude(key);
+      const m = await client.models.retrieve($("claudeModel").value);
+      $("keyMsg").textContent = "정상: " + m.display_name + " 사용 가능";
+    } catch (e) { $("keyMsg").textContent = "실패: " + claudeErrText(e); }
+    return;
+  }
   const keys = parseKeys($("apiKeys").value);
   if (!keys.length) { $("keyMsg").textContent = "키를 입력하세요."; return; }
   $("keyMsg").textContent = "확인 중...";
@@ -288,6 +333,82 @@ async function geminiOnce(b64, start, onWait) {
   }
   throw new Error((lastErr ? lastErr.message : "판독 실패") + " (잠시 후 다시 시도하거나 설정에서 키를 추가하세요)");
 }
+// ---------- Claude 판독 (공식 Anthropic SDK, 브라우저 모드) ----------
+const SDK_URL = "https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk@1.3.0/+esm";
+let AnthropicSDK = null, claudeClient = null;
+async function getClaude(key) {
+  if (!AnthropicSDK) AnthropicSDK = (await import(SDK_URL)).default;
+  if (key) return new AnthropicSDK({ apiKey: key, dangerouslyAllowBrowser: true });
+  if (!claudeClient) claudeClient = new AnthropicSDK({ apiKey: S.claudeKey, dangerouslyAllowBrowser: true });
+  return claudeClient;
+}
+// JSON 형태를 강제하는 스키마 (값을 못 읽으면 0, confidence "low")
+const READ_SCHEMA = {
+  type: "object",
+  properties: {
+    month: { type: "integer" },
+    day: { type: "integer" },
+    total: { type: "integer" },
+    items: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          qty: { type: "integer" },
+          cancelled: { type: "boolean" },
+          confidence: { type: "string", enum: ["high", "low"] }
+        },
+        required: ["name", "qty", "cancelled", "confidence"],
+        additionalProperties: false
+      }
+    }
+  },
+  required: ["month", "day", "total", "items"],
+  additionalProperties: false
+};
+function claudeErrText(e) {
+  const A = AnthropicSDK;
+  if (A && e instanceof A.AuthenticationError) return "API 키가 올바르지 않습니다.";
+  if (A && e instanceof A.PermissionDeniedError) return "이 키로는 해당 모델을 쓸 수 없습니다.";
+  if (A && e instanceof A.NotFoundError) return "모델을 찾을 수 없습니다.";
+  if (A && e instanceof A.RateLimitError) return "요청 한도를 넘었습니다. 잠시 후 다시 시도하세요.";
+  if (A && e instanceof A.APIConnectionError) return "Anthropic 서버에 연결하지 못했습니다. 인터넷 연결을 확인하세요.";
+  if (A && e instanceof A.APIError) {
+    const msg = (e.error && e.error.error && e.error.error.message) || e.message;
+    if (/credit balance/i.test(msg)) return "Anthropic 계정 잔액이 부족합니다. console.anthropic.com 에서 결제를 확인하세요.";
+    if (e.status === 529 || e.status >= 500) return "Anthropic 서버가 혼잡합니다. 잠시 후 다시 시도하세요.";
+    return msg;
+  }
+  return (e && e.message) || String(e);
+}
+async function claudeOnce(b64) {
+  const client = await getClaude();
+  let res;
+  try {
+    res = await client.beta.messages.create({
+      model: S.claudeModel,
+      max_tokens: 16000,
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
+      output_config: { effort: "medium", format: { type: "json_schema", schema: READ_SCHEMA } },
+      messages: [{
+        role: "user",
+        content: [
+          { type: "image", source: { type: "base64", media_type: "image/jpeg", data: b64 } },
+          { type: "text", text: PROMPT + "\n\n못 읽은 숫자는 0으로 적고 confidence를 \"low\"로 하세요." }
+        ]
+      }]
+    });
+  } catch (e) { throw new Error(claudeErrText(e)); }
+  if (res.stop_reason === "refusal") throw new Error("판독이 거절되었습니다. 다른 사진으로 다시 시도하세요.");
+  if (res.stop_reason === "max_tokens") throw new Error("판독 응답이 잘렸습니다. 다시 판독하세요.");
+  const text = res.content.filter(b => b.type === "text").map(b => b.text).join("");
+  try { return JSON.parse(text); }
+  catch (e) { throw new Error("판독 응답을 해석하지 못했습니다."); }
+}
+function readOnce(b64, start, onWait) { return S.engine === "claude" ? claudeOnce(b64) : geminiOnce(b64, start, onWait); }
+
 function normalize(o) {
   const num = v => (v == null || v === "" || isNaN(Number(v))) ? null : Number(v);
   return {
@@ -315,7 +436,7 @@ drop.addEventListener("dragleave", () => drop.classList.remove("hot"));
 drop.addEventListener("drop", e => { e.preventDefault(); drop.classList.remove("hot"); addFiles(e.dataTransfer.files); });
 
 function addFiles(files) {
-  if (!S.apiKeys || !S.apiKeys.length) { go("set"); $("keyMsg").textContent = "먼저 Gemini API 키를 넣고 저장하세요."; return; }
+  if (!hasKey()) { go("set"); $("keyMsg").textContent = "먼저 API 키를 넣고 저장하세요."; return; }
   [...files].filter(f => f.type.startsWith("image/")).forEach(f => {
     const c = { id: "c" + Date.now() + Math.random().toString(36).slice(2, 6), name: f.name, rot: 0, state: "wait", rows: [], reads: [], edit: false, checked: false };
     cards.push(c);
@@ -352,8 +473,8 @@ async function readCard(c) {
   c.state = "reading"; c.msg = "판독 중... (두 번 판독, 10~30초)"; render(c);
   try {
     const res = await Promise.allSettled([
-      geminiOnce(c.b64, 0, s => { c.msg = "혼잡합니다. " + s + "초 후 다시 시도"; render(c); }),
-      geminiOnce(c.b64, 1)
+      readOnce(c.b64, 0, s => { c.msg = "혼잡합니다. " + s + "초 후 다시 시도"; render(c); }),
+      readOnce(c.b64, 1)
     ]);
     const ok = res.filter(r => r.status === "fulfilled").map(r => normalize(r.value));
     if (!ok.length) throw res[0].reason;
@@ -582,7 +703,7 @@ $("mPreview").addEventListener("click", async e => {
 function start(info) {
   IN_EXCEL = !!(info && info.host === Office.HostType.Excel);
   loadSettingsUI(); initManual(); loadSheets();
-  if (!S.apiKeys.length) { go("set"); $("keyMsg").textContent = "사진 판독을 쓰려면 Gemini API 키를 넣고 저장하세요."; }
+  if (!hasKey()) { go("set"); $("keyMsg").textContent = "사진 판독을 쓰려면 API 키를 넣고 저장하세요."; }
 }
 if (window.Office) Office.onReady(start); else start(null);
 </script>
