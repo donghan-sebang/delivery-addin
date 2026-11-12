@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>세방 납품량 입력</title>
+<script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+<style>
+  body { font-family: "Malgun Gothic", sans-serif; margin: 12px; font-size: 13px; color: #222; }
+  h2 { font-size: 16px; margin: 0 0 10px; }
+  label { display: block; margin: 8px 0 4px; font-weight: bold; }
+  select, input[type=text] { width: 100%; padding: 5px; box-sizing: border-box; }
+  table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+  td { padding: 4px 2px; border-bottom: 1px solid #eee; }
+  td.q { width: 70px; }
+  td.q input { width: 100%; padding: 4px; box-sizing: border-box; text-align: right; }
+  .sum { margin-top: 8px; text-align: right; font-weight: bold; }
+  button { width: 100%; margin-top: 12px; padding: 9px; font-size: 14px; background: #1f6feb; color: #fff; border: 0; border-radius: 4px; cursor: pointer; }
+  button:disabled { background: #999; }
+  #status { margin-top: 10px; padding: 8px; border-radius: 4px; display: none; white-space: pre-wrap; }
+  #status.ok { display: block; background: #e6f4ea; color: #1e6b34; }
+  #status.bad { display: block; background: #fdecea; color: #a12622; }
+  #status.busy { display: block; background: #eef2ff; color: #333; }
+</style>
+</head>
+<body>
+<h2>납품량 입력 (세방 격리판)</h2>
+
+<label for="day">날짜 (시트 열)</label>
+<select id="day"></select>
+
+<label for="sheetName">시트 탭 이름</label>
+<input type="text" id="sheetName" value="Sheet1">
+
+<label>제품별 납품량</label>
+<table>
+  <tbody id="rows"></tbody>
+</table>
+<div class="sum">합계: <span id="total">0</span></div>
+
+<button id="writeBtn">시트에 입력</button>
+<div id="status"></div>
+
+<script>
+// 날짜 -> 시트 열 (기존 DAY_COL 과 동일)
+const DAY_COL = { 1:"F", 2:"G", 3:"H", 4:"I", 5:"J", 6:"K", 7:"L", 8:"M", 15:"T", 22:"AA", 29:"AH", 30:"AI" };
+
+// 제품 -> 시트 행 (기존 DEFAULT_MAP 과 동일, 58~67행)
+const ROWS = [
+  { name: "PEN. 120 * 0.6 * 0.20",           row: 58 },
+  { name: "PEN. 120 * 1.0 * 0.20",           row: 59 },
+  { name: "PEH. 157 * 0.7 * 0.20",           row: 60 },
+  { name: "PEH. 157 * 0.8 * 0.20",           row: 61 },
+  { name: "PEH. 157 * 1.0 * 0.20",           row: 62 },
+  { name: "PEH. 157 * 0.8 * 0.25 (11 Rib)",  row: 63 },
+  { name: "PEH. 157 * 1.0 * 0.25 (11 Rib)",  row: 64 },
+  { name: "PEHS. 157 * 0.6 * 0.20 (18 Rib)", row: 66 },
+  { name: "PEHS. 157 * 0.7 * 0.20 (18 Rib)", row: 67 }
+];
+const HEADER_ROW = 57;
+
+const $ = id => document.getElementById(id);
+
+function init() {
+  const daySel = $("day");
+  Object.keys(DAY_COL).forEach(d => {
+    const o = document.createElement("option");
+    o.value = d; o.textContent = d + "일 (" + DAY_COL[d] + "열)";
+    daySel.appendChild(o);
+  });
+  const tbody = $("rows");
+  ROWS.forEach((r, i) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = '<td></td><td class="q"><input type="number" min="0" step="1" value=""></td>';
+    tr.children[0].textContent = r.name;
+    tr.querySelector("input").addEventListener("input", updateTotal);
+    tbody.appendChild(tr);
+  });
+  updateTotal();
+  $("writeBtn").addEventListener("click", onWrite);
+}
+
+function qtyInputs() {
+  return Array.from(document.querySelectorAll("#rows input"));
+}
+
+function updateTotal() {
+  const sum = qtyInputs().reduce((a, el) => a + (Number(el.value) || 0), 0);
+  $("total").textContent = sum;
+}
+
+function setStatus(kind, text) {
+  const s = $("status");
+  s.className = kind;
+  s.textContent = text;
+}
+
+async function onWrite() {
+  const day = Number($("day").value);
+  const col = DAY_COL[day];
+  const sheetName = $("sheetName").value.trim() || "Sheet1";
+  const items = ROWS.map((r, i) => ({
+    row: r.row,
+    name: r.name,
+    qty: Number(qtyInputs()[i].value) || 0
+  }));
+  const total = items.reduce((a, x) => a + x.qty, 0);
+
+  if (total === 0) { setStatus("bad", "납품량을 한 개 이상 입력하세요."); return; }
+  if (!confirm(day + "일 (" + col + "열)에 합계 " + total + "을(를) 입력할까요?")) return;
+
+  $("writeBtn").disabled = true;
+  setStatus("busy", "시트에 입력 중...");
+  try {
+    await Excel.run(async (ctx) => {
+      const sh = ctx.workbook.worksheets.getItem(sheetName);
+      // 1) 열 머리글 검증: 예) "1일"
+      const head = sh.getRange(col + HEADER_ROW);
+      head.load("values");
+      await ctx.sync();
+      const h = String(head.values[0][0]).trim();
+      if (h !== day + "일") {
+        throw new Error(col + HEADER_ROW + " 머리글이 '" + h + "'입니다. '" + day + "일'이어야 합니다. 입력을 멈췄습니다(시트 변경 없음).");
+      }
+      // 2) 58~67행 기록 (0은 빈칸으로, 기존 방식과 동일)
+      items.forEach(x => {
+        sh.getRange(col + x.row).values = [[x.qty === 0 ? "" : x.qty]];
+      });
+      await ctx.sync();
+    });
+    setStatus("ok", "입력 완료: " + day + "일 (" + col + "열), 합계 " + total);
+  } catch (e) {
+    setStatus("bad", "입력 실패: " + e.message);
+  } finally {
+    $("writeBtn").disabled = false;
+  }
+}
+
+Office.onReady(() => init());
+</script>
+</body>
+</html>
