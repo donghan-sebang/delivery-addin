@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 세방 납품량 입력 Excel 추가 기능 매니페스트 -->
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xsi:type="TaskPaneApp">
+  <Id>6b1f0c2e-5a4d-4e8b-9c1a-2d3e4f5a6b7c</Id>
+  <Version>1.0.0.0</Version>
+  <ProviderName>세방산업</ProviderName>
+  <DefaultLocale>ko-KR</DefaultLocale>
+  <DisplayName DefaultValue="세방 납품량 입력"/>
+  <Description DefaultValue="공유 시트에 납품량을 입력합니다."/>
+  <IconUrl DefaultValue="https://donghan-sebang.github.io/delivery-addin/icon-32.png"/>
+  <HighResolutionIconUrl DefaultValue="https://donghan-sebang.github.io/delivery-addin/icon-80.png"/>
+  <SupportUrl DefaultValue="https://donghan-sebang.github.io/delivery-addin/"/>
+  <AppDomains>
+    <AppDomain>https://donghan-sebang.github.io</AppDomain>
+  </AppDomains>
+  <Hosts>
+    <Host Name="Workbook"/>
+  </Hosts>
+  <DefaultSettings>
+    <SourceLocation DefaultValue="https://donghan-sebang.github.io/delivery-addin/taskpane.html"/>
+  </DefaultSettings>
+  <Permissions>ReadWriteDocument</Permissions>
+</OfficeApp>
