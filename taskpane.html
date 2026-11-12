@@ -90,6 +90,7 @@
       <select id="sheetSel" class="w100"></select>
       <button class="ghost" onclick="loadSheets()">새로고침</button>
     </div>
+    <div id="sheetInfo" class="muted" style="margin-top:6px"></div>
   </div>
 
   <!-- ===== 사진 판독 ===== -->
@@ -247,21 +248,63 @@ async function testKeys() {
 }
 
 // ---------- 시트 탭 ----------
+let WB_NAME = "";
+function sheetInfo(kind, html) {
+  const el = $("sheetInfo");
+  el.className = kind === "bad" ? "banner bad" : kind === "warn" ? "banner warn" : "muted";
+  el.style.margin = "6px 0 0";
+  el.innerHTML = html;
+}
+// 탭 목록을 읽습니다. 못 읽으면 목록을 비우고 이유를 보여 줍니다 (Sheet1로 대신 채우지 않음).
 async function loadSheets() {
   const sel = $("sheetSel");
-  if (!IN_EXCEL) { sel.innerHTML = "<option>Sheet1</option>"; return; }
+  if (!IN_EXCEL) {
+    sel.innerHTML = ""; sel.disabled = true;
+    sheetInfo("bad", "<b>엑셀 탭 목록을 읽지 못했습니다.</b>\n이 화면이 엑셀 밖(브라우저)에서 열려 있습니다. 공유 납품량 엑셀 파일을 열고, 그 창의 추가 기능에서 여세요.");
+    return;
+  }
+  sheetInfo("", "엑셀 탭 목록을 읽는 중...");
   try {
     await Excel.run(async ctx => {
       const ws = ctx.workbook.worksheets; ws.load("items/name");
       const act = ctx.workbook.worksheets.getActiveWorksheet(); act.load("name");
       await ctx.sync();
+      WB_NAME = "";
+      try { ctx.workbook.load("name"); await ctx.sync(); WB_NAME = ctx.workbook.name || ""; } catch (e) { /* 이전 엑셀 버전: 파일 이름 미지원 */ }
       const prev = sel.value || load("addin_sheet", "") || act.name;
       sel.innerHTML = ws.items.map(w => "<option>" + esc(w.name) + "</option>").join("");
       sel.value = ws.items.some(w => w.name === prev) ? prev : act.name;
+      sel.disabled = false;
     });
-  } catch (e) { sel.innerHTML = "<option>Sheet1</option>"; }
+    await checkSheet();
+  } catch (e) {
+    sel.innerHTML = ""; sel.disabled = true;
+    sheetInfo("bad", "<b>엑셀 탭 목록을 읽지 못했습니다.</b>\n" + esc(e.message || e) + "\n[새로고침]을 눌러 다시 시도하세요.");
+  }
 }
-$("sheetSel").addEventListener("change", () => store("addin_sheet", $("sheetSel").value));
+// 고른 탭의 57행 날짜 머리글을 확인하고, 지금 읽는 위치를 보여 줍니다.
+async function checkSheet() {
+  const sheet = $("sheetSel").value;
+  if (!sheet) return;
+  const where = (WB_NAME ? "파일 <b>" + esc(WB_NAME) + "</b> · " : "") + "탭 <b>" + esc(sheet) + "</b>";
+  try {
+    await Excel.run(async ctx => {
+      const head = ctx.workbook.worksheets.getItem(sheet).getRange("A" + HEADER_ROW + ":CZ" + HEADER_ROW); head.load("values");
+      await ctx.sync();
+      const days = [];
+      head.values[0].forEach((v, i) => { const m = String(v).replace(/\s/g, "").match(/^(\d{1,2})일$/); if (m) days.push({ d: +m[1], col: colName(i) }); });
+      if (!days.length) {
+        sheetInfo("warn", "읽는 곳: " + where + "\n<b>" + HEADER_ROW + "행에 '1일, 2일...' 날짜 머리글이 없습니다.</b> 탭을 잘못 골랐을 수 있습니다.");
+      } else {
+        const f = days[0], l = days[days.length - 1];
+        sheetInfo("", "읽는 곳: " + where + "<br>날짜 머리글 " + HEADER_ROW + "행: " + f.d + "일(" + f.col + "열) ~ " + l.d + "일(" + l.col + "열), " + days.length + "개<br>입력 행: " + MAP[0].row + "~" + MAP[MAP.length - 1].row + "행 (65행 제외)");
+      }
+    });
+  } catch (e) {
+    sheetInfo("bad", "읽는 곳: " + where + "\n<b>이 탭을 읽지 못했습니다.</b> " + esc(e.message || e));
+  }
+}
+$("sheetSel").addEventListener("change", () => { store("addin_sheet", $("sheetSel").value); checkSheet(); });
 
 // ---------- 품명 해석 ----------
 function resolveName(name, prevPrefix) {
@@ -632,6 +675,7 @@ function colName(i) { let s = ""; i++; while (i > 0) { const m = (i - 1) % 26; s
 async function buildPreview(day, month, vals) {
   if (!IN_EXCEL) throw new Error("엑셀 안에서 열어야 입력할 수 있습니다.");
   const sheet = $("sheetSel").value;
+  if (!sheet) throw new Error("입력할 시트 탭이 없습니다. 위의 [새로고침]을 눌러 탭 목록을 다시 읽으세요.");
   return await Excel.run(async ctx => {
     const sh = ctx.workbook.worksheets.getItem(sheet);
     const head = sh.getRange("A" + HEADER_ROW + ":CZ" + HEADER_ROW); head.load("values");
