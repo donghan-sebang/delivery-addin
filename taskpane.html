@@ -289,16 +289,19 @@ async function checkSheet() {
   const where = (WB_NAME ? "파일 <b>" + esc(WB_NAME) + "</b> · " : "") + "탭 <b>" + esc(sheet) + "</b>";
   try {
     await Excel.run(async ctx => {
-      const head = ctx.workbook.worksheets.getItem(sheet).getRange("A" + HEADER_ROW + ":CZ" + HEADER_ROW); head.load("values");
-      await ctx.sync();
-      const days = [];
-      head.values[0].forEach((v, i) => { const m = String(v).replace(/\s/g, "").match(/^(\d{1,2})일$/); if (m) days.push({ d: +m[1], col: colName(i) }); });
-      if (!days.length) {
-        sheetInfo("warn", "읽는 곳: " + where + "\n<b>" + HEADER_ROW + "행에 '1일, 2일...' 날짜 머리글이 없습니다.</b> 탭을 잘못 골랐을 수 있습니다.");
-      } else {
-        const f = days[0], l = days[days.length - 1];
-        sheetInfo("", "읽는 곳: " + where + "<br>날짜 머리글 " + HEADER_ROW + "행: " + f.d + "일(" + f.col + "열) ~ " + l.d + "일(" + l.col + "열), " + days.length + "개<br>입력 행: " + MAP[0].row + "~" + MAP[MAP.length - 1].row + "행 (65행 제외)");
+      const L = await locateLayout(ctx, sheet);
+      if (!L.ok) {
+        sheetInfo("warn", "읽는 곳: " + where + "\n<b>" + esc(L.error) + "</b>\n" + esc(L.diag));
+        return;
       }
+      const ds = Object.keys(L.dayCols).map(Number).sort((a, b) => a - b);
+      const f = ds[0], l = ds[ds.length - 1];
+      const rowsTxt = MAP.map(m => L.rows[m.key] ? m.key + "=" + L.rows[m.key] : m.key + "=없음").join(", ");
+      sheetInfo(L.missing.length ? "warn" : "",
+        "읽는 곳: " + where + "<br>날짜 머리글 " + L.headerRow + "행: " + f + "일(" + L.dayCols[f] + "열) ~ " + l + "일(" + L.dayCols[l] + "열), " + ds.length + "개" +
+        "<br>제품 행 (" + (L.byName ? "제품명으로 찾음" : "기본 위치") + "): " + esc(rowsTxt) +
+        (L.missing.length ? "<br><b>시트에서 못 찾은 제품: " + esc(L.missing.join(", ")) + "</b> (이 제품은 입력하지 않습니다)" : "") +
+        (L.others.length ? "<br><b>같은 모양의 표가 " + L.others.join(", ") + "행에도 있습니다.</b> 위 구역(" + L.headerRow + "행)에 입력합니다." : ""));
     });
   } catch (e) {
     sheetInfo("bad", "읽는 곳: " + where + "\n<b>이 탭을 읽지 못했습니다.</b> " + esc(e.message || e));
@@ -672,42 +675,126 @@ $("cards").addEventListener("change", e => {
 // vals: { row: qty } . 매핑된 모든 행을 쓰고, 없는 제품은 빈칸으로 둡니다 (65행 등 매핑 외 행은 건드리지 않음)
 function colName(i) { let s = ""; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; }
 
+// ---------- 시트 구조 찾기 ----------
+// 날짜 머리글 행(1일~31일)과 제품 행을 찾습니다.
+// 머리글은 "1일" 글자, 숫자 1~31 (서식으로 "1일"처럼 보이는 경우 포함), 날짜(2026-11-01 등)를 모두 인식합니다.
+// 제품 행은 시트에 적힌 제품명(PEN. 120 * 0.6 * 0.20 등)으로 찾고, 못 찾으면 기본 위치(58~67행)를 씁니다.
+const SCAN = "A1:CZ200";
+function normName(s) { return String(s == null ? "" : s).toUpperCase().replace(/×/g, "*").replace(/\s/g, ""); }
+function cellDay(v, t) {
+  const tx = String(t == null ? "" : t).replace(/\s/g, "");
+  let m = tx.match(/^(\d{1,2})일$/);                                     // "1일"
+  if (m && +m[1] >= 1 && +m[1] <= 31) return +m[1];
+  if (typeof v === "number") {
+    if (Number.isInteger(v) && v >= 1 && v <= 31 && /^\d{1,2}(일)?$/.test(tx)) return v;   // 숫자 1~31
+    if (v > 40000 && v < 60000) return new Date(Math.round((v - 25569) * 86400000)).getUTCDate(); // 엑셀 날짜
+  }
+  m = tx.match(/^(\d{1,2})[\/.\-](\d{1,2})\.?$/);                        // "11/1", "11.1"
+  if (m && +m[2] >= 1 && +m[2] <= 31) return +m[2];
+  m = tx.match(/^(\d{1,2})월(\d{1,2})일$/);                              // "11월1일"
+  if (m) return +m[2];
+  return 0;
+}
+async function locateLayout(ctx, sheet) {
+  const rg = ctx.workbook.worksheets.getItem(sheet).getRange(SCAN);
+  rg.load("values, text");
+  await ctx.sync();
+  const V = rg.values, T = rg.text;
+  // 1) 날짜 머리글 후보 행: 서로 다른 날짜가 15개 이상이고, 왼쪽→오른쪽으로 커지는 순서
+  //    (수량 줄에 1~31 사이 숫자가 많아도 순서가 뒤섞여 있으므로 머리글로 잡히지 않음)
+  const heads = [];
+  for (let r = 0; r < V.length; r++) {
+    const cols = {}, seq = []; let dup = false;
+    for (let c = 0; c < V[r].length; c++) {
+      const d = cellDay(V[r][c], T[r][c]);
+      if (d) { seq.push(d); if (cols[d]) dup = true; else cols[d] = colName(c); }
+    }
+    if (Object.keys(cols).length < 15) continue;
+    let up = 0; for (let i = 1; i < seq.length; i++) if (seq[i] > seq[i - 1]) up++;
+    if (up >= (seq.length - 1) * 0.9) heads.push({ row: r + 1, cols, dup });
+  }
+  // 2) 제품명 위치 (A~H열)
+  const nameHits = {};
+  MAP.forEach(m => nameHits[m.key] = []);
+  for (let r = 0; r < V.length; r++) for (let c = 0; c < 8; c++) {
+    const n = normName(T[r][c] || V[r][c]);
+    if (!n) continue;
+    MAP.forEach(m => { if (n === normName(m.name)) nameHits[m.key].push(r + 1); });
+  }
+  const anyName = MAP.some(m => nameHits[m.key].length);
+  if (!heads.length) {
+    // 진단: 57행 내용과 제품명 위치를 보여 줍니다
+    const r57 = (T[HEADER_ROW - 1] || []).map((t, c) => t ? colName(c) + "=" + t : "").filter(Boolean).slice(0, 8).join(", ");
+    const nm = MAP.filter(m => nameHits[m.key].length).map(m => m.key + "→" + nameHits[m.key].join("/") + "행").join(", ");
+    return { ok: false, error: "1~200행에서 날짜 머리글(1일~31일) 줄을 찾지 못했습니다.",
+      diag: HEADER_ROW + "행 내용: " + (r57 || "(비어 있음)") + "\n제품명 위치: " + (nm || "찾지 못함") };
+  }
+  // 3) 머리글 행 고르기: 그 아래에서 제품명이 가장 많이 잡히는 행. 같으면 57행, 그다음 위쪽 행
+  const pick = h => {
+    const next = heads.find(x => x.row > h.row);
+    const rows = {};
+    MAP.forEach(m => { const r = nameHits[m.key].find(r => r > h.row && (!next || r < next.row)); if (r) rows[m.key] = r; });
+    return rows;
+  };
+  let best = null;
+  heads.forEach(h => {
+    const rows = pick(h), n = Object.keys(rows).length;
+    if (!best || n > best.n || (n === best.n && h.row === HEADER_ROW)) best = { h, rows, n };
+  });
+  let rows = best.rows, byName = best.n > 0, missing = [];
+  if (!byName) {
+    if (anyName) {
+      return { ok: false, error: "날짜 머리글 아래에서 제품명을 찾지 못했습니다.",
+        diag: "머리글 행: " + heads.map(h => h.row).join(", ") + "\n제품명 위치: " + MAP.filter(m => nameHits[m.key].length).map(m => m.key + "→" + nameHits[m.key].join("/")).join(", ") };
+    }
+    rows = {}; MAP.forEach(m => rows[m.key] = m.row);   // 시트에 제품명이 없으면 기본 위치
+  } else {
+    missing = MAP.filter(m => !rows[m.key]).map(m => m.key);
+  }
+  if (best.h.dup) return { ok: false, error: best.h.row + "행에 같은 날짜 머리글이 두 번 이상 있습니다.", diag: "시트를 확인하세요." };
+  // 같은 모양의 구역이 더 있으면 알려 줌 (어느 구역에 쓰는지 확인용)
+  const others = heads.filter(h => h !== best.h && Object.keys(pick(h)).length === best.n && best.n > 0).map(h => h.row);
+  return { ok: true, headerRow: best.h.row, dayCols: best.h.cols, rows, byName, missing, others };
+}
+
 async function buildPreview(day, month, vals) {
   if (!IN_EXCEL) throw new Error("엑셀 안에서 열어야 입력할 수 있습니다.");
   const sheet = $("sheetSel").value;
   if (!sheet) throw new Error("입력할 시트 탭이 없습니다. 위의 [새로고침]을 눌러 탭 목록을 다시 읽으세요.");
   return await Excel.run(async ctx => {
     const sh = ctx.workbook.worksheets.getItem(sheet);
-    const head = sh.getRange("A" + HEADER_ROW + ":CZ" + HEADER_ROW); head.load("values");
+    const L = await locateLayout(ctx, sheet);
+    if (!L.ok) throw new Error(L.error + " " + L.diag);
+    const col = L.dayCols[day];
+    if (!col) throw new Error(L.headerRow + "행에서 " + day + "일 머리글을 찾지 못했습니다.");
+    // vals 는 기본 행 번호 기준 → 시트에서 찾은 행으로 옮김
+    const blocked = MAP.filter(m => !L.rows[m.key] && vals[m.row]).map(m => m.key);
+    if (blocked.length) throw new Error("시트에서 이 제품의 행을 찾지 못했습니다: " + blocked.join(", "));
+    const use = MAP.filter(m => L.rows[m.key]);
+    const cells = use.map(m => { const c = sh.getRange(col + L.rows[m.key]); c.load("values"); return c; });
+    const nameCells = use.map(m => { const c = sh.getRange("A" + L.rows[m.key] + ":H" + L.rows[m.key]); c.load("text"); return c; });
     await ctx.sync();
-    const want = day + "일";
-    const hits = [];
-    head.values[0].forEach((v, i) => { if (String(v).replace(/\s/g, "") === want) hits.push(i); });
-    if (!hits.length) throw new Error(HEADER_ROW + "행에서 '" + want + "' 머리글을 찾지 못했습니다. 시트 탭이 맞는지 확인하세요.");
-    if (hits.length > 1) throw new Error(HEADER_ROW + "행에 '" + want + "' 머리글이 " + hits.length + "개 있습니다. 시트를 확인하세요.");
-    const col = colName(hits[0]);
-    const rows = MAP.map(m => m.row);
-    const rng = sh.getRange(col + Math.min(...rows) + ":" + col + Math.max(...rows)); rng.load("values");
-    await ctx.sync();
-    const first = Math.min(...rows);
-    const lines = MAP.map(m => {
-      const oldV = rng.values[m.row - first][0];
+    const lines = use.map((m, i) => {
+      const oldV = cells[i].values[0][0];
       const nv = vals[m.row] || 0;
-      return { row: m.row, name: m.key, oldV: oldV === null ? "" : oldV, newV: nv === 0 ? "" : nv };
+      const label = nameCells[i].text[0].find(t => normName(t) === normName(m.name)) || m.name;
+      return { row: L.rows[m.key], name: m.key, label, oldV: oldV === null ? "" : oldV, newV: nv === 0 ? "" : nv };
     });
     const warn = [];
     if (lines.some(l => l.oldV !== "")) warn.push("이 날짜에 이미 값이 있습니다. 확정하면 덮어씁니다.");
-    const mm = sheet.match(/(\d{1,2})\s*월/);
-    if (month && mm && Number(mm[1]) !== month) warn.push("사진은 " + month + "월인데 시트 탭은 '" + sheet + "'입니다.");
-    return { sheet, day, col, lines, warn };
+    if (!L.byName) warn.push("시트에서 제품명을 찾지 못해 기본 행(58~67행)에 입력합니다. 행이 맞는지 꼭 확인하세요.");
+    if (L.others.length) warn.push("같은 모양의 표가 " + L.others.join(", ") + "행에도 있습니다. " + L.headerRow + "행 표에 입력합니다.");
+    const mm = (sheet + " " + WB_NAME).match(/(\d{1,2})\s*월/);
+    if (month && mm && Number(mm[1]) !== month) warn.push("사진은 " + month + "월인데 시트는 '" + mm[0] + "'입니다.");
+    return { sheet, day, col, headerRow: L.headerRow, lines, warn };
   });
 }
 async function writePreview(p) {
   await Excel.run(async ctx => {
     const sh = ctx.workbook.worksheets.getItem(p.sheet);
-    const head = sh.getRange(p.col + HEADER_ROW); head.load("values");
+    const head = sh.getRange(p.col + p.headerRow); head.load("values, text");
     await ctx.sync();
-    if (String(head.values[0][0]).replace(/\s/g, "") !== p.day + "일") throw new Error("머리글이 바뀌었습니다. 다시 시도하세요.");
+    if (cellDay(head.values[0][0], head.text[0][0]) !== p.day) throw new Error("머리글이 바뀌었습니다. 다시 시도하세요.");
     p.lines.forEach(l => { sh.getRange(p.col + l.row).values = [[l.newV]]; });
     await ctx.sync();
   });
